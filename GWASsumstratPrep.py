@@ -13,6 +13,35 @@ import os, sys, string, gzip
 # 2) identify the effect allele
 # 3) identify the score
 
+def loadSNPdb(fname):
+    sys.stderr.write("loading SNPdb from '" + fname + "' this may take a while....\n")
+    snpdb = {}
+
+    f = gzip.open(fname)
+    line = f.readline()
+    lastchr="XXX"
+    currdb = {}
+    while line != "":
+        tok = line.strip().split('\t')
+        mychr=tok[1]
+        mypos=tok[2]
+        myrs =tok[4]
+        mymafs=tok[-2].split(',')
+        maf=min(float(mymafs[0]),float(mymafs[1]))
+        if maf > 0.05:
+            if lastchr != mychr:
+                snpdb[lastchr] = currdb
+                try:
+                    currdb = snpdb[mychr]
+                except KeyError:
+                    currdb = {}
+            currdb[mychr + ":" + mypos] = myrs
+
+        line = f.readline()
+    f.close()
+    snpdb[lastchr] = currdb
+    sys.stderr.write("... done\n")
+    return snpdb
 
 def processSumStat(fname, ofbase, varmap):
 
@@ -68,6 +97,7 @@ def help(sname, varmap):
     sys.stderr.write("--ea <name>\tcolumn name containg the effect allele, default: " + varmap["EA"] + "\n")
     sys.stderr.write("--pv <name>\tcolumn name containg the p-value, default: " + varmap["pvalue"] + "\n")
     sys.stderr.write("--score <name>\tcolumn name containg the score, default: " + varmap["score"] + "\n")
+    sys.stderr.write("--snpdb <fname>\tfile containg the dbSNP, defautl: none\n")
     sys.stderr.write("--snpname <name>\tcolumn name containg the SNP, default: " + varmap["SNP"] + "\n")
     sys.exit(-1)
 
@@ -79,6 +109,7 @@ varmap["pvalue"] = "P"
 varmap["score"] = "BETA"
 varmap["SNP"] = "SNP"
 
+snpdbf=""
 
 ### add a menu ###
 
@@ -96,6 +127,9 @@ while nvar - cvar > 2:
     elif tag == "--score":
         cvar+=1
         varmap["score"]=sys.argv[cvar]
+    elif tag == "--snpdb":
+        cvar += 1
+        snpdbf=sys.argv[cvar]
     elif tag == "--snpname":
         cvar+=1
         varmap["SNP"]=sys.argv[cvar]
@@ -106,6 +140,10 @@ while nvar - cvar > 2:
 
 if nvar - cvar < 2:
     help(sys.argv[0], varmap)
+
+mysnpdb={}
+if snpdbf != "":
+  mysnpdb = loadSNPdb(snpdbf)
 
 inname = sys.argv[cvar]
 outbase = sys.argv[cvar+1]
